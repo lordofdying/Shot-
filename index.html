@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Light & Form — Selected Work</title>
+
+  <!-- Editorial Typography: Cormorant Garamond, Playfair Display, Inter, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            galleryPaper: '#f7f2ea',
+            gallerySand: '#ead9c1',
+            galleryOak: '#cbb08a',
+            galleryInk: '#2f272a',
+            galleryPlum: '#4a353d',
+            galleryMuted: '#7a706d'
+          },
+          fontFamily: {
+            serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+            display: ['"Playfair Display"', 'Georgia', 'serif'],
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Three.js r128 & JSZip for one-click ZIP export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #f7f2ea;
+      color: #2f272a;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    #webgl-host {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      cursor: grab;
+    }
+
+    #webgl-host:active {
+      cursor: grabbing;
+    }
+
+    #webgl-host.is-hovering-photo {
+      cursor: pointer;
+    }
+
+    #webgl-host canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Floating View Photograph pill centered over focused artwork */
+    #view-photo-pill {
+      position: fixed;
+      z-index: 18;
+      transform: translate(-50%, -50%) scale(0.95);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #view-photo-pill.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    /* Modal & Lightbox overlays */
+    .gallery-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgba(247, 242, 234, 0.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.32s ease;
+    }
+
+    .gallery-overlay.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .lightbox-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(24, 19, 21, 0.86);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+
+    .lightbox-backdrop.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(47, 39, 42, 0.2);
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body class="font-sans">
+
+  <!-- Full-Viewport 3D Circular Rotunda Gallery Canvas -->
+  <div id="webgl-host" aria-label="Interactive 3D Circular Exhibition Corridor"></div>
+
+  <!-- Floating "View photograph" pill when zoomed in on a framed plate -->
+  <button
+    id="view-photo-pill"
+    type="button"
+    class="px-5 py-2.5 rounded-full bg-galleryPlum/95 hover:bg-galleryPlum text-[#fcfaf6] font-serif text-base tracking-wide shadow-lg border border-white/15 transition-colors cursor-pointer"
+  >
+    View photograph
+  </button>
+
+  <!-- Subtle Notification Toast -->
+  <div
+    id="status-toast"
+    class="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-galleryPlum text-white font-mono text-[11px] tracking-wider shadow-lg opacity-0 pointer-events:none transition-opacity duration-300"
+  >
+    Package ready
+  </div>
+
+  <!-- Minimalist Editorial HUD -->
+  <div class="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between">
+
+    <!-- Top Navigation Bar -->
+    <header class="w-full px-5 sm:px-9 pt-5 sm:pt-6 flex items-start justify-between gap-4">
+      <div class="flex items-baseline gap-6 sm:gap-10 pointer-events-auto">
+        <a href="#gallery" id="brand-reset-btn" class="group block text-left">
+          <div class="font-serif text-xl sm:text-2xl font-medium tracking-tight text-galleryInk leading-none">
+            Light &amp; Form
+          </div>
+          <div class="font-mono text-[10px] tracking-[0.14em] text-galleryMuted mt-1">
+            photography / selected work
+          </div>
+        </a>
+
+        <nav class="hidden md:flex items-center gap-7 font-serif text-[16px] text-galleryInk/85">
+          <button type="button" data-nav="gallery" class="nav-link hover:text-galleryInk transition-colors cursor-pointer font-medium">
+            The gallery
+          </button>
+          <button type="button" data-nav="selected" class="nav-link hover:text-galleryInk transition-colors cursor-pointer">
+            Selected work
+          </button>
+          <button type="button" data-nav="about" class="nav-link hover:text-galleryInk transition-colors cursor-pointer">
+            About the work
+          </button>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-2.5 sm:gap-3 pointer-events-auto">
+        <!-- Load Local Photos directly (works even on file:// without a server) -->
+        <label
+          for="local-photos-input"
+          class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-galleryInk/20 bg-white/80 hover:bg-white text-galleryInk font-mono text-[11px] tracking-[0.06em] uppercase shadow-xs transition-colors cursor-pointer"
+          title="Select local .jpg, .webp, or .png files to hang in the gallery"
+        >
+          <span>+ Load Photos</span>
+          <input
+            id="local-photos-input"
+            type="file"
+            accept="image/jpeg,image/webp,image/png,.jpg,.jpeg,.webp,.png"
+            multiple
+            class="hidden"
+          />
+        </label>
+
+        <!-- Load an entire local folder (e.g., your assets folder) directly -->
+        <label
+          for="local-folder-input"
+          class="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-galleryInk/20 bg-white/80 hover:bg-white text-galleryInk font-mono text-[11px] tracking-[0.06em] uppercase shadow-xs transition-colors cursor-pointer"
+          title="Select a local folder (like assets/) to load all images inside it"
+        >
+          <span>+ Folder</span>
+          <input
+            id="local-folder-input"
+            type="file"
+            webkitdirectory
+            directory
+            multiple
+            class="hidden"
+          />
+        </label>
+
+        <!-- Download Full Website ZIP Package -->
+        <button
+          id="download-zip-btn"
+          type="button"
+          class="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-galleryPlum hover:bg-galleryInk text-[#fcfaf6] font-mono text-[11px] tracking-[0.08em] uppercase shadow-sm transition-colors cursor-pointer"
+          title="Download complete website + assets folder as ZIP"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span>Download ZIP</span>
+        </button>
+
+        <button
+          id="header-like-pill"
+          type="button"
+          class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-galleryInk/15 bg-white/70 hover:bg-white text-galleryInk text-xs font-mono transition-all cursor-pointer shadow-xs"
+          title="Saved photographs"
+        >
+          <span id="header-heart-icon" class="text-sm leading-none text-galleryPlum">&#9825;</span>
+          <span id="header-like-count">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Left-Edge Circular Step Arrows -->
+    <div class="fixed left-4 sm:left-7 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2.5 pointer-events-auto">
+      <button
+        id="step-prev-btn"
+        type="button"
+        aria-label="Previous plate"
+        class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-galleryInk/18 bg-white/65 hover:bg-white text-galleryInk/80 hover:text-galleryInk flex items-center justify-center transition-all shadow-xs cursor-pointer"
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M19 12H5M11 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <button
+        id="step-next-btn"
+        type="button"
+        aria-label="Next plate"
+        class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-galleryInk/18 bg-white/65 hover:bg-white text-galleryInk/80 hover:text-galleryInk flex items-center justify-center transition-all shadow-xs cursor-pointer"
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Bottom Editorial Lockup & Controls -->
+    <footer class="w-full px-5 sm:px-9 pb-5 sm:pb-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-10 pointer-events-auto">
+        <div>
+          <div class="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] text-galleryMuted mb-1">
+            STREET / TRAVEL / ARCHITECTURE
+          </div>
+          <h1 class="font-display font-black text-5xl sm:text-7xl lg:text-[82px] tracking-[-0.03em] text-galleryPlum leading-[0.84]">
+            IN FRAME.
+          </h1>
+        </div>
+
+        <button
+          id="explore-selected-btn"
+          type="button"
+          class="group inline-flex items-center justify-between gap-8 pb-1.5 border-b border-galleryInk/25 hover:border-galleryInk text-left transition-colors cursor-pointer self-start sm:self-end mb-1"
+        >
+          <span class="font-serif italic text-base sm:text-lg text-galleryInk/90">
+            Explore selected photographs
+          </span>
+          <span class="font-mono text-xs text-galleryInk/70 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">
+            &#8599;
+          </span>
+        </button>
+      </div>
+
+      <div class="flex flex-col items-start md:items-end gap-2.5 pointer-events-auto">
+        <div id="wander-helper-text" class="font-mono text-[10px] uppercase tracking-[0.16em] text-galleryMuted text-left md:text-right leading-relaxed">
+          <div>SCROLL OR DRAG TO WANDER</div>
+          <div>CLICK A PHOTO TO COME CLOSER</div>
+        </div>
+
+        <div class="inline-flex items-center p-1 rounded-full border border-galleryInk/20 bg-white/75 backdrop-blur-xs shadow-xs">
+          <button
+            id="mode-gallery-btn"
+            type="button"
+            class="px-4 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-[0.16em] bg-galleryPlum text-white transition-all cursor-pointer"
+          >
+            GALLERY
+          </button>
+          <button
+            id="mode-index-btn"
+            type="button"
+            class="px-4 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-[0.16em] text-galleryInk/80 hover:text-galleryInk transition-all cursor-pointer"
+          >
+            INDEX
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3 font-mono text-[11px] tracking-[0.14em] text-galleryMuted">
+          <span id="plate-counter-label">01 / 06</span>
+          <div class="w-16 h-[1.5px] bg-galleryInk/15 rounded-full overflow-hidden">
+            <div id="plate-progress-fill" class="h-full bg-galleryPlum transition-all duration-300" style="width: 16.66%;"></div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Selected Work / Index Sheet Overlay -->
+  <section id="index-modal" class="gallery-overlay custom-scroll overflow-y-auto px-5 sm:px-10 py-8 sm:py-12" aria-hidden="true">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex flex-wrap items-start justify-between gap-4 pb-6 border-b border-galleryInk/15">
+        <div>
+          <div class="font-mono text-[11px] uppercase tracking-[0.18em] text-galleryMuted">
+            Light &amp; Form &middot; Selected work
+          </div>
+          <h2 class="font-display text-3xl sm:text-5xl font-bold text-galleryPlum mt-1">
+            Selected work. <span class="font-serif italic font-normal text-galleryInk">A closer look.</span>
+          </h2>
+          <p class="font-serif text-lg text-galleryMuted mt-1">
+            Uncropped gallery plates scaled to each photograph&rsquo;s native aspect ratio. Drop any .jpg, .webp, or .png files into <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">assets/</code>.
+          </p>
+        </div>
+        <button
+          type="button"
+          data-close-modal
+          class="px-4 py-2 rounded-full border border-galleryInk/20 bg-white/80 hover:bg-white font-mono text-xs uppercase tracking-widest text-galleryInk transition-colors cursor-pointer"
+        >
+          Back to gallery &times;
+        </button>
+      </div>
+
+      <div id="index-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mt-8"></div>
+    </div>
+  </section>
+
+  <!-- About the Work Overlay -->
+  <section id="about-modal" class="gallery-overlay custom-scroll overflow-y-auto px-5 sm:px-10 py-8 sm:py-12" aria-hidden="true">
+    <div class="max-w-3xl mx-auto">
+      <div class="flex items-center justify-between pb-6 border-b border-galleryInk/15">
+        <span class="font-mono text-[11px] uppercase tracking-[0.18em] text-galleryMuted">
+          About the collection
+        </span>
+        <button
+          type="button"
+          data-close-modal
+          class="px-4 py-2 rounded-full border border-galleryInk/20 bg-white/80 hover:bg-white font-mono text-xs uppercase tracking-widest text-galleryInk transition-colors cursor-pointer"
+        >
+          Close &times;
+        </button>
+      </div>
+
+      <div class="mt-8 space-y-6">
+        <h2 class="font-display text-4xl sm:text-5xl font-bold text-galleryPlum leading-tight">
+          Light. Place. <span class="font-serif italic font-normal text-galleryInk">Perspective.</span>
+        </h2>
+        <p class="font-serif text-xl sm:text-2xl text-galleryInk/90 leading-relaxed">
+          Light &amp; Form is an interactive circular rotunda exhibition exploring everyday life, urban geometry, and the quiet relationship between people and architectural space.
+        </p>
+        <p class="font-sans text-sm sm:text-base text-galleryMuted leading-relaxed">
+          Place any <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">.jpg</code>, <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">.webp</code>, or <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">.png</code> files inside the <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">assets/</code> folder (such as <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">photo-01.webp</code> through <code class="font-mono text-xs bg-black/5 px-1.5 py-0.5 rounded">photo-36.jpg</code>) and each frame automatically adjusts its width and height to match the image&rsquo;s native ratio without cropping.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+          <div class="p-4 rounded-xl bg-white/75 border border-galleryInk/10">
+            <div class="font-mono text-[10px] uppercase tracking-widest text-galleryMuted">Architecture</div>
+            <div class="font-serif text-lg font-medium text-galleryInk mt-1">360&deg; Endless Rotunda</div>
+          </div>
+          <div class="p-4 rounded-xl bg-white/75 border border-galleryInk/10">
+            <div class="font-mono text-[10px] uppercase tracking-widest text-galleryMuted">Framing</div>
+            <div class="font-serif text-lg font-medium text-galleryInk mt-1">Uncropped Native Ratio</div>
+          </div>
+          <div class="p-4 rounded-xl bg-white/75 border border-galleryInk/10">
+            <div class="font-mono text-[10px] uppercase tracking-widest text-galleryMuted">Navigation</div>
+            <div class="font-serif text-lg font-medium text-galleryInk mt-1">Scroll, Drag &amp; Zoom</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Full-Resolution Photograph Lightbox Modal -->
+  <div id="lightbox-modal" class="lightbox-backdrop flex items-center justify-center p-4 sm:p-8" aria-hidden="true">
+    <div class="relative w-full max-w-5xl bg-galleryPaper rounded-2xl shadow-2xl border border-white/20 overflow-hidden grid grid-cols-1 lg:grid-cols-12 max-h-[90vh]">
+      <div class="lg:col-span-8 bg-[#efe7da] flex items-center justify-center p-6 sm:p-10 relative min-h-[300px]">
+        <button
+          id="lb-prev-btn"
+          type="button"
+          aria-label="Previous photograph"
+          class="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-galleryInk flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-105"
+        >
+          &#8249;
+        </button>
+
+        <div class="bg-white p-3 sm:p-4 shadow-xl border-[6px] border-[#cbb08a] max-h-[68vh] flex items-center justify-center">
+          <img id="lb-image" src="" alt="" class="max-h-[60vh] w-auto max-w-full object-contain block" />
+        </div>
+
+        <button
+          id="lb-next-btn"
+          type="button"
+          aria-label="Next photograph"
+          class="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/85 hover:bg-white text-galleryInk flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-105"
+        >
+          &#8250;
+        </button>
+      </div>
+
+      <div class="lg:col-span-4 p-6 sm:p-8 flex flex-col justify-between bg-galleryPaper overflow-y-auto custom-scroll">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span id="lb-plate-tag" class="font-mono text-[11px] uppercase tracking-[0.18em] text-galleryMuted">
+              PLATE 01 / 06
+            </span>
+            <button
+              id="lb-close-btn"
+              type="button"
+              aria-label="Close photograph viewer"
+              class="w-8 h-8 rounded-full border border-galleryInk/15 hover:bg-galleryInk hover:text-white flex items-center justify-center text-sm transition-colors cursor-pointer"
+            >
+              &times;
+            </button>
+          </div>
+
+          <h3 id="lb-title" class="font-serif italic text-3xl sm:text-4xl text-galleryInk leading-tight">
+            Spring crossing
+          </h3>
+          <p id="lb-category" class="font-serif text-base text-galleryMuted mt-1">
+            Street &middot; Japan
+          </p>
+          <p id="lb-credit" class="font-mono text-[11px] text-galleryMuted/80 mt-0.5">
+            Paul Yong / Monograph I
+          </p>
+
+          <hr class="my-5 border-galleryInk/12" />
+
+          <p id="lb-description" class="font-sans text-sm text-galleryInk/85 leading-relaxed">
+            Morning sunlight grazes concrete facades along a quiet Tokyo residential intersection, framing crimson camellia blossoms against crisp white crosswalk stripes.
+          </p>
+
+          <dl class="mt-5 space-y-2 font-mono text-[11px] text-galleryMuted">
+            <div class="flex justify-between">
+              <dt>SERIES</dt>
+              <dd id="lb-series" class="text-galleryInk">Street &middot; Tokyo</dd>
+            </div>
+            <div class="flex justify-between">
+              <dt>DIMENSIONS / OPTICS</dt>
+              <dd id="lb-camera" class="text-galleryInk">Leica M6 &middot; 35mm Summicron</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="pt-6 mt-6 border-t border-galleryInk/12 flex items-center justify-between gap-3">
+          <button
+            id="lb-like-btn"
+            type="button"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-galleryInk/20 hover:border-galleryPlum text-xs font-mono text-galleryInk transition-colors cursor-pointer"
+          >
+            <span id="lb-heart-icon" class="text-sm text-galleryPlum">&#9825;</span>
+            <span id="lb-like-label">Save plate</span>
+          </button>
+
+          <span class="font-mono text-[10px] uppercase tracking-widest text-galleryMuted">
+            ESC TO STEP BACK
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Curated Fallback Works when no external files are present in ./assets/
+     */
+    const FALLBACK_GALLERY_WORKS = [
+      {
+        id: '01',
+        title: 'Spring crossing',
+        category: 'Street · Japan',
+        credit: 'Paul Yong / Monograph I',
+        series: 'Street · Tokyo',
+        camera: 'Leica M6 · 35mm Summicron',
+        description: 'Warm morning sunlight slices between concrete facades in a quiet Tokyo neighborhood, illuminating crimson camellia blossoms beside crisp white crosswalk stripes.',
+        sceneType: 'spring_crossing'
+      },
+      {
+        id: '02',
+        title: 'Afternoon shadows',
+        category: 'Street · London',
+        credit: 'Lachlan Gowen / Monograph II',
+        series: 'Street · London',
+        camera: 'Contax G2 · 45mm Planar',
+        description: 'Viewed from an elevated bridge, low golden-hour sunlight stretches pedestrian silhouettes across dark wet asphalt in dramatic diagonal rhythm.',
+        sceneType: 'afternoon_shadows'
+      },
+      {
+        id: '03',
+        title: 'Into the mountains',
+        category: 'Travel · Europe',
+        credit: 'Max Rovensky / Monograph III',
+        series: 'Travel · Alpine',
+        camera: 'Hasselblad 500C/M · 80mm',
+        description: 'A traveler pauses beside a warm terracotta alpine house, raising a camera toward mist-veiled mountain peaks after a passing rain.',
+        sceneType: 'into_mountains'
+      },
+      {
+        id: '04',
+        title: 'The quiet courtyard',
+        category: 'Architecture · Urban space',
+        credit: 'Bucky Zhang / Monograph IV',
+        series: 'Architecture · Concrete',
+        camera: 'Linhof Technika 4×5 · 135mm',
+        description: 'A razor-sharp diagonal shadow bisects a rhythmic modernist concrete facade while a solitary figure stands still in the quiet stone courtyard below.',
+        sceneType: 'quiet_courtyard'
+      },
+      {
+        id: '05',
+        title: 'Golden avenue',
+        category: 'Street · Europe',
+        credit: 'Elena Rostova / Monograph V',
+        series: 'Street · Boulevard',
+        camera: 'Mamiya 7II · 65mm f/4',
+        description: 'Late-afternoon amber light pours down a classic limestone avenue, turning architectural cornices and distant trees into warm silhouettes.',
+        sceneType: 'golden_avenue'
+      },
+      {
+        id: '06',
+        title: 'Crossing the city',
+        category: 'Street · Tokyo',
+        credit: 'Andrew Ling / Monograph VI',
+        series: 'Street · Metropolis',
+        camera: 'Ricoh GR1v · 28mm f/2.8',
+        description: 'Beneath towering glass and steel canyons, a lone figure in a dark coat steps across a rain-slicked avenue as warm traffic signals glow in the mist.',
+        sceneType: 'crossing_city'
+      }
+    ];
+
+    /**
+     * Automatically discovers any .jpg, .jpeg, .webp, or .png files inside ./assets/
+     * (via local HTTP directory index or probing photo-01..photo-36 across all extensions).
+     */
+    async function discoverAssetWorks() {
+      const isFileProtocol = window.location.protocol === 'file:';
+      if (isFileProtocol) {
+        return FALLBACK_GALLERY_WORKS.map((work) => ({
+          ...work,
+          externalUrl: null,
+          preloadedImg: null
+        }));
+      }
+
+      const exts = ['webp', 'jpg', 'jpeg', 'png'];
+      const foundUrls = [];
+      const seen = new Set();
+
+      const addUnique = (url) => {
+        if (!seen.has(url)) {
+          seen.add(url);
+          foundUrls.push(url);
+        }
+      };
+
+      // 1. Parse directory listing if served by a local web server
+      try {
+        const res = await fetch('./assets/', { cache: 'no-store' });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('text/html')) {
+            const html = await res.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            doc.querySelectorAll('a[href]').forEach((a) => {
+              const href = a.getAttribute('href') || '';
+              if (/\.(jpe?g|webp|png)$/i.test(href)) {
+                const cleanName = href.split('/').pop();
+                if (cleanName) addUnique(`./assets/${cleanName}`);
+              }
+            });
+          }
+        }
+      } catch (_) {}
+
+      // 2. Probe photo-01..photo-36 across webp/jpg/jpeg/png on HTTP/HTTPS
+      const probePromises = [];
+      for (let i = 1; i <= 36; i++) {
+        const num = String(i).padStart(2, '0');
+        for (const ext of exts) {
+          const candidate = `./assets/photo-${num}.${ext}`;
+          probePromises.push(
+            new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => resolve({ order: i, url: candidate, img });
+              img.onerror = () => resolve(null);
+              img.src = candidate;
+            })
+          );
+        }
+      }
+
+      const probeResults = (await Promise.all(probePromises))
+        .filter(Boolean)
+        .sort((a, b) => a.order - b.order);
+
+      const loadedByUrl = new Map();
+      probeResults.forEach((item) => {
+        addUnique(item.url);
+        loadedByUrl.set(item.url, item.img);
+      });
+
+      if (foundUrls.length === 0) {
+        return FALLBACK_GALLERY_WORKS.map((work) => ({
+          ...work,
+          externalUrl: null,
+          preloadedImg: null
+        }));
+      }
+
+      const works = await Promise.all(
+        foundUrls.map(async (url, idx) => {
+          let img = loadedByUrl.get(url) || null;
+          if (!img) {
+            img = await new Promise((resolve) => {
+              const el = new Image();
+              el.onload = () => resolve(el);
+              el.onerror = () => resolve(null);
+              el.src = url;
+            });
+          }
+          if (!img) return null;
+
+          const baseMeta = FALLBACK_GALLERY_WORKS[idx];
+          const fileName = decodeURIComponent(url.split('/').pop() || `Plate ${idx + 1}`);
+          const cleanTitle = baseMeta
+            ? baseMeta.title
+            : fileName.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+          return {
+            id: String(idx + 1).padStart(2, '0'),
+            title: cleanTitle,
+            category: baseMeta ? baseMeta.category : `Exhibition Plate · ${img.naturalWidth}×${img.naturalHeight}`,
+            credit: baseMeta ? baseMeta.credit : `assets/${fileName}`,
+            series: baseMeta ? baseMeta.series : 'Light & Form · Custom Archive',
+            camera: baseMeta ? baseMeta.camera : `${img.naturalWidth} × ${img.naturalHeight} px`,
+            description: baseMeta
+              ? baseMeta.description
+              : `Archival plate (${fileName}) displayed uncropped at its native ${(img.naturalWidth / Math.max(1, img.naturalHeight)).toFixed(2)}:1 aspect ratio.`,
+            sceneType: baseMeta ? baseMeta.sceneType : 'spring_crossing',
+            externalUrl: url,
+            preloadedImg: img
+          };
+        })
+      );
+
+      return works.filter(Boolean);
+    }
+
+    /**
+     * Converts a loaded HTMLImageElement or canvas into a non-tainted image/png data URL
+     * so Chrome never throws WebGL texImage2D SecurityError on file:// or local files.
+     */
+    function imageToSafeDataUrl(img, maxDim = 1600) {
+      try {
+        const natW = img.naturalWidth || img.width || 960;
+        const natH = img.naturalHeight || img.height || 1240;
+        let targetW = natW;
+        let targetH = natH;
+        if (targetW > maxDim || targetH > maxDim) {
+          const scale = maxDim / Math.max(targetW, targetH);
+          targetW = Math.max(1, Math.round(targetW * scale));
+          targetH = Math.max(1, Math.round(targetH * scale));
+        }
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = targetW;
+        tempCanvas.height = targetH;
+        const ctx = tempCanvas.getContext('2d');
+        ctx.fillStyle = '#f7f2ea';
+        ctx.fillRect(0, 0, targetW, targetH);
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        return tempCanvas.toDataURL('image/png');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    /**
+     * Generates Three.js texture + native aspect ratio without cropping.
+     * Uses THREE.TextureLoader on a clean image source so WebGL never hits
+     * tainted-canvas SecurityError in Chrome.
+     */
+    function buildArtworkAssets(work) {
+      if (work.preloadedImg && work.preloadedImg.naturalWidth > 0 && work.preloadedImg.naturalHeight > 0) {
+        const img = work.preloadedImg;
+        const aspect = img.naturalWidth / img.naturalHeight;
+        const safeSrc = work.safeDataUrl || imageToSafeDataUrl(img) || work.externalUrl || '';
+
+        const texImg = new Image();
+        const texture = new THREE.Texture(texImg);
+        texture.encoding = THREE.sRGBEncoding;
+        texture.anisotropy = 4;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+
+        texImg.onload = () => {
+          texture.needsUpdate = true;
+        };
+        if (safeSrc) {
+          texImg.src = safeSrc;
+        }
+
+        return {
+          texture,
+          dataUrl: safeSrc || work.externalUrl || '',
+          aspect
+        };
+      }
+
+      const w = 960;
+      const h = 1240;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      const palettes = {
+        spring_crossing: ['#e8dfd3', '#3b3330', '#a9382e', '#d6c7b4'],
+        afternoon_shadows: ['#343136', '#c99b5b', '#1d1b1e', '#6f665f'],
+        into_mountains: ['#cfd7dc', '#d47c56', '#56646e', '#ece6dd'],
+        quiet_courtyard: ['#ddd6c9', '#2b2927', '#8f887d', '#f1ece2'],
+        golden_avenue: ['#e4b878', '#523c2d', '#f5dec0', '#8c694a'],
+        crossing_city: ['#5b666d', '#24292d', '#b86843', '#9aa5ab']
+      };
+      const [bg, dark, accent, light] = palettes[work.sceneType] || palettes.spring_crossing;
+
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, bg);
+      grad.addColorStop(1, light);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Architectural geometry blocks
+      ctx.fillStyle = dark;
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.22);
+      ctx.lineTo(w * 0.58, h * 0.48);
+      ctx.lineTo(w * 0.58, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = accent;
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(w * 0.14, h * 0.34, w * 0.26, h * 0.32);
+      ctx.globalAlpha = 1;
+
+      // Subtle archival paper grain
+      ctx.fillStyle = 'rgba(255, 250, 240, 0.06)';
+      for (let y = 0; y < h; y += 6) {
+        ctx.fillRect(0, y, w, 2);
+      }
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const texImg = new Image();
+      const texture = new THREE.Texture(texImg);
+      texture.encoding = THREE.sRGBEncoding;
+      texture.anisotropy = 8;
+      texImg.onload = () => {
+        texture.needsUpdate = true;
+      };
+      texImg.src = dataUrl;
+
+      return {
+        texture,
+        dataUrl,
+        aspect: w / h
+      };
+    }
+
+    /**
+     * High-DPI wall placard texture mounted beneath each frame
+     */
+    function buildPlacardTexture(work) {
+      const w = 640;
+      const h = 220;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.fillStyle = '#2f272a';
+      ctx.font = 'italic 500 50px "Cormorant Garamond", Georgia, serif';
+      ctx.fillText(work.title, 8, 56);
+
+      ctx.fillStyle = '#6f6562';
+      ctx.font = '400 34px "Cormorant Garamond", Georgia, serif';
+      ctx.fillText(work.category, 8, 104);
+
+      ctx.fillStyle = '#928884';
+      ctx.font = '400 22px "JetBrains Mono", monospace';
+      ctx.fillText(work.credit, 8, 146);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = 4;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    /**
+     * Endless 360-Degree Circular Rotunda Gallery (O-Shaped Hallway)
+     */
+    class CurvedGalleryCorridor {
+      constructor(works) {
+        this.works = Array.isArray(works) && works.length > 0 ? works : FALLBACK_GALLERY_WORKS;
+        this.host = document.getElementById('webgl-host');
+        if (!this.host) {
+          this.host = document.createElement('div');
+          this.host.id = 'webgl-host';
+          document.body.prepend(this.host);
+        }
+
+        this.width = this.host.clientWidth || window.innerWidth;
+        this.height = this.host.clientHeight || window.innerHeight;
+
+        // O-ring architectural dimensions
+        this.ringCenterRadius = 18.0;
+        this.corridorHalfWidth = 3.9;
+        this.innerWallRadius = this.ringCenterRadius - this.corridorHalfWidth;
+        this.outerWallRadius = this.ringCenterRadius + this.corridorHalfWidth;
+        this.wallHeight = 7.2;
+
+        // 24 evenly spaced frames alternating between outer (right) and inner (left) walls
+        this.totalFrames = Math.max(24, Math.ceil(24 / this.works.length) * this.works.length);
+
+        // Camera & navigation state
+        this.scrollProgress = 0;
+        this.targetScrollProgress = 0;
+        this.scrollVelocity = 0;
+        this.focusedFrameIndex = null;
+        this.hoveredFrameIndex = null;
+        this.activeWorkIndex = 0;
+        this.likedPlates = new Set();
+
+        // Pointer drag state
+        this.isDragging = false;
+        this.dragMoved = false;
+        this.lastPointerX = 0;
+        this.pointerDownPos = { x: 0, y: 0 };
+
+        // Three.js collections
+        this.frameMeshes = [];
+        this.interactivePlanes = [];
+        this.artworkCache = [];
+        this.raycaster = new THREE.Raycaster();
+        this.pointerNDC = new THREE.Vector2(-99, -99);
+
+        this.initScene();
+        this.buildCurvedArchitecture();
+        this.placeFramedWorks();
+        this.renderIndexGrid();
+        this.bindEvents();
+        this.updateHud();
+        this.animate();
+      }
+
+      getRingAngle(progress) {
+        return progress * Math.PI * 2;
+      }
+
+      getRingPoint(progress, radius) {
+        const theta = this.getRingAngle(progress);
+        return {
+          x: Math.sin(theta) * radius,
+          y: Math.cos(theta) * radius
+        };
+      }
+
+      initScene() {
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color('#f7f2ea');
+        this.scene.fog = new THREE.FogExp2('#f7f2ea', 0.022);
+
+        this.camera = new THREE.PerspectiveCamera(44, this.width / this.height, 0.1, 140);
+
+        this.renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: 'high-performance'
+        });
+        this.renderer.setSize(this.width, this.height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.04;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+
+        if (this.host) {
+          this.host.innerHTML = '';
+          this.host.appendChild(this.renderer.domElement);
+        }
+
+        // Warm museum lighting
+        const hemiLight = new THREE.HemisphereLight('#fffdf9', '#e3cfb4', 1.18);
+        this.scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight('#fff7eb', 0.42);
+        dirLight.position.set(12, 24, 14);
+        this.scene.add(dirLight);
+      }
+
+      buildCurvedArchitecture() {
+        const radialSegments = 180;
+
+        // Curved sandstone ring floor
+        const floorGeo = new THREE.RingGeometry(
+          this.innerWallRadius - 0.1,
+          this.outerWallRadius + 0.1,
+          radialSegments,
+          4
+        );
+        floorGeo.rotateX(-Math.PI / 2);
+        const floorMat = new THREE.MeshStandardMaterial({
+          color: '#ead9c1',
+          roughness: 0.92,
+          metalness: 0.02
+        });
+        const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+        floorMesh.position.y = 0;
+        this.scene.add(floorMesh);
+
+        // Outer plaster gallery wall (faces inward)
+        const outerWallGeo = new THREE.CylinderGeometry(
+          this.outerWallRadius,
+          this.outerWallRadius,
+          this.wallHeight,
+          radialSegments,
+          1,
+          true
+        );
+        const wallMat = new THREE.MeshStandardMaterial({
+          color: '#f9f5ee',
+          roughness: 0.9,
+          metalness: 0.0,
+          side: THREE.BackSide
+        });
+        const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
+        outerWall.position.y = this.wallHeight / 2;
+        this.scene.add(outerWall);
+
+        // Inner plaster drum wall (faces outward into the corridor)
+        const innerWallGeo = new THREE.CylinderGeometry(
+          this.innerWallRadius,
+          this.innerWallRadius,
+          this.wallHeight,
+          radialSegments,
+          1,
+          true
+        );
+        const innerWallMat = new THREE.MeshStandardMaterial({
+          color: '#f6f1e9',
+          roughness: 0.9,
+          metalness: 0.0,
+          side: THREE.FrontSide
+        });
+        const innerWall = new THREE.Mesh(innerWallGeo, innerWallMat);
+        innerWall.position.y = this.wallHeight / 2;
+        this.scene.add(innerWall);
+
+        // Subtle architectural baseboard trim along both walls
+        const trimMat = new THREE.MeshStandardMaterial({
+          color: '#dfd0bc',
+          roughness: 0.85
+        });
+
+        const outerTrimGeo = new THREE.CylinderGeometry(
+          this.outerWallRadius - 0.03,
+          this.outerWallRadius - 0.03,
+          0.18,
+          radialSegments,
+          1,
+          true
+        );
+        const outerTrim = new THREE.Mesh(outerTrimGeo, trimMat);
+        outerTrim.position.y = 0.09;
+        outerTrim.material.side = THREE.BackSide;
+        this.scene.add(outerTrim);
+
+        const innerTrimGeo = new THREE.CylinderGeometry(
+          this.innerWallRadius + 0.03,
+          this.innerWallRadius + 0.03,
+          0.18,
+          radialSegments,
+          1,
+          true
+        );
+        const innerTrim = new THREE.Mesh(innerTrimGeo, trimMat);
+        innerTrim.position.y = 0.09;
+        this.scene.add(innerTrim);
+      }
+
+      placeFramedWorks() {
+        this.artworkCache = this.works.map((work) => buildArtworkAssets(work));
+
+        const oakMat = new THREE.MeshStandardMaterial({
+          color: '#cbb08a',
+          roughness: 0.62,
+          metalness: 0.05
+        });
+
+        const matBoardMat = new THREE.MeshStandardMaterial({
+          color: '#fcfaf5',
+          roughness: 0.88
+        });
+
+        const shadowMat = new THREE.MeshBasicMaterial({
+          color: '#2f272a',
+          transparent: true,
+          opacity: 0.14
+        });
+
+        for (let i = 0; i < this.totalFrames; i++) {
+          const workIndex = i % this.works.length;
+          const work = this.works[workIndex];
+          const art = this.artworkCache[workIndex];
+
+          const progress = i / this.totalFrames;
+          const isOuterWall = i % 2 === 0; // Even indices on right (outer), odd on left (inner)
+          const wallRadius = isOuterWall
+            ? this.outerWallRadius - 0.08
+            : this.innerWallRadius + 0.08;
+
+          const pt = this.getRingPoint(progress, wallRadius);
+
+          // Scale 50% larger while preserving native aspect ratio without cropping
+          const baseArea = 4.65;
+          const clampedAspect = Math.max(0.45, Math.min(2.4, art.aspect || 0.78));
+          const artHeight = Math.sqrt(baseArea / clampedAspect);
+          const artWidth = artHeight * clampedAspect;
+
+          const matBorder = 0.22;
+          const frameBorder = 0.13;
+          const matW = artWidth + matBorder * 2;
+          const matH = artHeight + matBorder * 2;
+          const outerW = matW + frameBorder * 2;
+          const outerH = matH + frameBorder * 2;
+          const frameDepth = 0.14;
+
+          const group = new THREE.Group();
+          group.position.set(pt.x, 3.25, pt.y);
+
+          // Face toward the center of the corridor
+          const inwardTarget = isOuterWall
+            ? new THREE.Vector3(0, 3.25, 0)
+            : new THREE.Vector3(pt.x * 2, 3.25, pt.y * 2);
+          group.lookAt(inwardTarget);
+
+          // Soft drop shadow against wall
+          const shadowGeo = new THREE.PlaneGeometry(outerW + 0.14, outerH + 0.14);
+          const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+          shadowMesh.position.set(0.03, -0.04, 0.01);
+          group.add(shadowMesh);
+
+          // Oak frame molding
+          const frameGeo = new THREE.BoxGeometry(outerW, outerH, frameDepth);
+          const frameMesh = new THREE.Mesh(frameGeo, oakMat);
+          frameMesh.position.z = frameDepth / 2 + 0.01;
+          group.add(frameMesh);
+
+          // Archival white mat board
+          const matGeo = new THREE.PlaneGeometry(matW, matH);
+          const matMesh = new THREE.Mesh(matGeo, matBoardMat);
+          matMesh.position.z = frameDepth + 0.016;
+          group.add(matMesh);
+
+          // Uncropped photograph plane
+          const photoGeo = new THREE.PlaneGeometry(artWidth, artHeight);
+          const photoMat = new THREE.MeshBasicMaterial({
+            map: art.texture
+          });
+          const photoMesh = new THREE.Mesh(photoGeo, photoMat);
+          photoMesh.position.z = frameDepth + 0.022;
+          photoMesh.userData = {
+            frameIndex: i,
+            workIndex
+          };
+          group.add(photoMesh);
+          this.interactivePlanes.push(photoMesh);
+
+          // Wall-mounted museum placard beneath the frame
+          const placardTex = buildPlacardTexture(work);
+          const placardW = Math.max(1.5, Math.min(2.3, outerW * 0.72));
+          const placardH = placardW * (220 / 640);
+          const placardGeo = new THREE.PlaneGeometry(placardW, placardH);
+          const placardMat = new THREE.MeshBasicMaterial({
+            map: placardTex,
+            transparent: true
+          });
+          const placardMesh = new THREE.Mesh(placardGeo, placardMat);
+          placardMesh.position.set(-outerW / 2 + placardW / 2, -outerH / 2 - placardH / 2 - 0.16, 0.02);
+          group.add(placardMesh);
+
+          this.scene.add(group);
+          this.frameMeshes.push({
+            group,
+            photoMesh,
+            progress,
+            isOuterWall,
+            workIndex,
+            outerW,
+            outerH
+          });
+        }
+      }
+
+      getWalkCameraPose(progress) {
+        const pt = this.getRingPoint(progress, this.ringCenterRadius);
+        const lookPt = this.getRingPoint(progress + 0.045, this.ringCenterRadius);
+        return {
+          position: new THREE.Vector3(pt.x, 3.05, pt.y),
+          target: new THREE.Vector3(lookPt.x, 3.02, lookPt.y)
+        };
+      }
+
+      getFocusCameraPose(frameIdx) {
+        const frameObj = this.frameMeshes[frameIdx];
+        if (!frameObj) return this.getWalkCameraPose(this.scrollProgress);
+
+        const framePos = frameObj.group.position.clone();
+        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(frameObj.group.quaternion).normalize();
+
+        // Compute ideal distance so the full frame fits comfortably in viewport
+        const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+        const aspect = this.width / Math.max(1, this.height);
+        const distV = (frameObj.outerH * 0.78) / Math.tan(vFov / 2);
+        const distH = (frameObj.outerW * 0.78) / (Math.tan(vFov / 2) * aspect);
+        const viewDist = Math.max(3.6, Math.min(6.4, Math.max(distV, distH)));
+
+        const camPos = framePos.clone().addScaledVector(normal, viewDist);
+        camPos.y = framePos.y;
+
+        return {
+          position: camPos,
+          target: framePos
+        };
+      }
+
+      getNearestProgressForFrame(frameIdx) {
+        const frameObj = this.frameMeshes[frameIdx];
+        if (!frameObj) return this.targetScrollProgress;
+        const desired = frameObj.progress - 0.032;
+        const delta = desired - this.targetScrollProgress;
+        const wrappedDelta = delta - Math.round(delta);
+        return this.targetScrollProgress + wrappedDelta;
+      }
+
+      focusFrame(frameIdx) {
+        this.focusedFrameIndex = frameIdx;
+        const frameObj = this.frameMeshes[frameIdx];
+        if (frameObj) {
+          this.activeWorkIndex = frameObj.workIndex;
+          this.targetScrollProgress = this.getNearestProgressForFrame(frameIdx);
+        }
+        this.updateHud();
+      }
+
+      unfocusFrame() {
+        if (this.focusedFrameIndex === null) return;
+        this.focusedFrameIndex = null;
+        const pill = document.getElementById('view-photo-pill');
+        if (pill) pill.classList.remove('is-visible');
+        this.updateHud();
+      }
+
+      renderIndexGrid() {
+        const grid = document.getElementById('index-grid');
+        if (!grid) return;
+
+        grid.innerHTML = this.works
+          .map((work, idx) => {
+            const art = this.artworkCache[idx];
+            const isLiked = this.likedPlates.has(idx);
+            return `
+              <article class="group bg-white/80 rounded-2xl p-4 border border-galleryInk/10 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+                <div>
+                  <button
+                    type="button"
+                    data-open-work="${idx}"
+                    class="w-full bg-[#efe7da] rounded-xl p-4 flex items-center justify-center overflow-hidden cursor-pointer"
+                  >
+                    <div class="bg-white p-2 border-[4px] border-[#cbb08a] shadow-sm">
+                      <img src="${art ? art.dataUrl : ''}" alt="${work.title}" class="max-h-60 w-auto object-contain block group-hover:scale-[1.02] transition-transform duration-300" />
+                    </div>
+                  </button>
+                  <div class="mt-4 flex items-start justify-between gap-2">
+                    <div>
+                      <div class="font-mono text-[10px] tracking-widest uppercase text-galleryMuted">PLATE ${work.id}</div>
+                      <h3 class="font-serif italic text-2xl text-galleryInk mt-0.5">${work.title}</h3>
+                      <p class="font-serif text-sm text-galleryMuted">${work.category}</p>
+                    </div>
+                    <button
+                      type="button"
+                      data-toggle-like="${idx}"
+                      class="w-8 h-8 rounded-full border border-galleryInk/15 hover:border-galleryPlum flex items-center justify-center text-sm text-galleryPlum cursor-pointer"
+                      aria-label="Save photograph"
+                    >
+                      ${isLiked ? '&#9829;' : '&#9825;'}
+                    </button>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-galleryInk/10 flex items-center justify-between font-mono text-[11px] text-galleryMuted">
+                  <span>${work.credit}</span>
+                  <button type="button" data-jump-work="${idx}" class="text-galleryPlum hover:underline cursor-pointer">
+                    Walk to frame &rarr;
+                  </button>
+                </div>
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      openModal(modalId) {
+        this.closeAllModals();
+        const el = document.getElementById(modalId);
+        if (el) {
+          el.classList.add('is-visible');
+          el.setAttribute('aria-hidden', 'false');
+        }
+        const galleryBtn = document.getElementById('mode-gallery-btn');
+        const indexBtn = document.getElementById('mode-index-btn');
+        if (modalId === 'index-modal' && galleryBtn && indexBtn) {
+          indexBtn.classList.add('bg-galleryPlum', 'text-white');
+          indexBtn.classList.remove('text-galleryInk/80');
+          galleryBtn.classList.remove('bg-galleryPlum', 'text-white');
+          galleryBtn.classList.add('text-galleryInk/80');
+        }
+      }
+
+      closeAllModals() {
+        ['index-modal', 'about-modal'].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.classList.remove('is-visible');
+            el.setAttribute('aria-hidden', 'true');
+          }
+        });
+        const galleryBtn = document.getElementById('mode-gallery-btn');
+        const indexBtn = document.getElementById('mode-index-btn');
+        if (galleryBtn && indexBtn) {
+          galleryBtn.classList.add('bg-galleryPlum', 'text-white');
+          galleryBtn.classList.remove('text-galleryInk/80');
+          indexBtn.classList.remove('bg-galleryPlum', 'text-white');
+          indexBtn.classList.add('text-galleryInk/80');
+        }
+      }
+
+      openLightbox(workIdx) {
+        const safeIdx = ((workIdx % this.works.length) + this.works.length) % this.works.length;
+        this.activeWorkIndex = safeIdx;
+        const work = this.works[safeIdx];
+        const art = this.artworkCache[safeIdx];
+
+        const lbImg = document.getElementById('lb-image');
+        const lbPlateTag = document.getElementById('lb-plate-tag');
+        const lbTitle = document.getElementById('lb-title');
+        const lbCategory = document.getElementById('lb-category');
+        const lbCredit = document.getElementById('lb-credit');
+        const lbDesc = document.getElementById('lb-description');
+        const lbSeries = document.getElementById('lb-series');
+        const lbCamera = document.getElementById('lb-camera');
+        const lbHeart = document.getElementById('lb-heart-icon');
+        const lbLikeLabel = document.getElementById('lb-like-label');
+
+        if (lbImg && art) {
+          lbImg.src = art.dataUrl;
+          lbImg.alt = work.title;
+        }
+        if (lbPlateTag) {
+          lbPlateTag.textContent = `PLATE ${String(safeIdx + 1).padStart(2, '0')} / ${String(this.works.length).padStart(2, '0')}`;
+        }
+        if (lbTitle) lbTitle.textContent = work.title;
+        if (lbCategory) lbCategory.textContent = work.category;
+        if (lbCredit) lbCredit.textContent = work.credit;
+        if (lbDesc) lbDesc.textContent = work.description;
+        if (lbSeries) lbSeries.textContent = work.series;
+        if (lbCamera) lbCamera.textContent = work.camera;
+
+        const isLiked = this.likedPlates.has(safeIdx);
+        if (lbHeart) lbHeart.innerHTML = isLiked ? '&#9829;' : '&#9825;';
+        if (lbLikeLabel) lbLikeLabel.textContent = isLiked ? 'Saved in collection' : 'Save plate';
+
+        const modal = document.getElementById('lightbox-modal');
+        if (modal) {
+          modal.classList.add('is-visible');
+          modal.setAttribute('aria-hidden', 'false');
+        }
+        this.updateHud();
+      }
+
+      closeLightbox() {
+        const modal = document.getElementById('lightbox-modal');
+        if (modal) {
+          modal.classList.remove('is-visible');
+          modal.setAttribute('aria-hidden', 'true');
+        }
+      }
+
+      toggleLike(workIdx) {
+        if (this.likedPlates.has(workIdx)) {
+          this.likedPlates.delete(workIdx);
+        } else {
+          this.likedPlates.add(workIdx);
+        }
+        const countEl = document.getElementById('header-like-count');
+        const heartEl = document.getElementById('header-heart-icon');
+        if (countEl) countEl.textContent = String(this.likedPlates.size);
+        if (heartEl) heartEl.innerHTML = this.likedPlates.size > 0 ? '&#9829;' : '&#9825;';
+
+        const lbHeart = document.getElementById('lb-heart-icon');
+        const lbLikeLabel = document.getElementById('lb-like-label');
+        const isLiked = this.likedPlates.has(this.activeWorkIndex);
+        if (lbHeart) lbHeart.innerHTML = isLiked ? '&#9829;' : '&#9825;';
+        if (lbLikeLabel) lbLikeLabel.textContent = isLiked ? 'Saved in collection' : 'Save plate';
+
+        this.renderIndexGrid();
+      }
+
+      showToast(message) {
+        const toast = document.getElementById('status-toast');
+        if (!toast) return;
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => {
+          toast.style.opacity = '0';
+        }, 2800);
+      }
+
+      async downloadZipPackage() {
+        if (typeof JSZip === 'undefined') {
+          this.showToast('JSZip library still loading...');
+          return;
+        }
+        this.showToast('Preparing gallery ZIP package...');
+        const zip = new JSZip();
+
+        const rawHtml = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        zip.file('index.html', rawHtml);
+
+        const assetsFolder = zip.folder('assets');
+        this.works.forEach((work, idx) => {
+          const art = this.artworkCache[idx];
+          if (art && art.dataUrl && art.dataUrl.startsWith('data:image/')) {
+            const base64Data = art.dataUrl.split(',')[1];
+            const num = String(idx + 1).padStart(2, '0');
+            assetsFolder.file(`photo-${num}.jpg`, base64Data, { base64: true });
+          }
+        });
+
+        zip.file(
+          'README.txt',
+          [
+            'LIGHT & FORM — 3D CIRCULAR ROTUNDA GALLERY',
+            '==========================================',
+            '',
+            '1. Drop any .jpg, .jpeg, .webp, or .png images into the "assets/" folder',
+            '   (e.g., photo-01.webp, photo-02.jpg, photo-03.png, up to photo-36).',
+            '2. Serve with any local HTTP server (e.g., "npx serve ." or "python -m http.server")',
+            '   OR open index.html directly and click "+ Load Photos" in the top bar.',
+            '3. Every frame automatically adapts to your image\'s native aspect ratio without cropping.'
+          ].join('\n')
+        );
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'light-and-form-3d-gallery.zip';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        this.showToast('Downloaded light-and-form-3d-gallery.zip');
+      }
+
+      bindEvents() {
+        const onPointerMove = (clientX, clientY) => {
+          this.pointerNDC.x = (clientX / this.width) * 2 - 1;
+          this.pointerNDC.y = -(clientY / this.height) * 2 + 1;
+
+          if (this.isDragging) {
+            const dx = clientX - this.lastPointerX;
+            if (Math.abs(clientX - this.pointerDownPos.x) > 5 || Math.abs(clientY - this.pointerDownPos.y) > 5) {
+              this.dragMoved = true;
+            }
+            if (this.focusedFrameIndex !== null && Math.abs(dx) > 6) {
+              this.unfocusFrame();
+            }
+            this.targetScrollProgress -= dx * 0.00042;
+            this.lastPointerX = clientX;
+          }
+        };
+
+        this.host.addEventListener('pointerdown', (e) => {
+          this.isDragging = true;
+          this.dragMoved = false;
+          this.lastPointerX = e.clientX;
+          this.pointerDownPos = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('pointermove', (e) => {
+          onPointerMove(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('pointerup', (e) => {
+          if (!this.isDragging) return;
+          this.isDragging = false;
+
+          if (!this.dragMoved && e.target === this.renderer.domElement) {
+            this.pointerNDC.x = (e.clientX / this.width) * 2 - 1;
+            this.pointerNDC.y = -(e.clientY / this.height) * 2 + 1;
+            this.raycaster.setFromCamera(this.pointerNDC, this.camera);
+            const hits = this.raycaster.intersectObjects(this.interactivePlanes, false);
+
+            if (hits.length > 0) {
+              const hitData = hits[0].object.userData;
+              if (this.focusedFrameIndex === hitData.frameIndex) {
+                this.openLightbox(hitData.workIndex);
+              } else {
+                this.focusFrame(hitData.frameIndex);
+              }
+            } else if (this.focusedFrameIndex !== null) {
+              this.unfocusFrame();
+            }
+          }
+        });
+
+        window.addEventListener(
+          'wheel',
+          (e) => {
+            const indexOpen = document.getElementById('index-modal')?.classList.contains('is-visible');
+            const aboutOpen = document.getElementById('about-modal')?.classList.contains('is-visible');
+            const lbOpen = document.getElementById('lightbox-modal')?.classList.contains('is-visible');
+            if (indexOpen || aboutOpen || lbOpen) return;
+
+            if (this.focusedFrameIndex !== null) {
+              this.unfocusFrame();
+            }
+            const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            this.targetScrollProgress += delta * 0.00018;
+          },
+          { passive: true }
+        );
+
+        window.addEventListener('keydown', (e) => {
+          const lbOpen = document.getElementById('lightbox-modal')?.classList.contains('is-visible');
+          if (e.key === 'Escape') {
+            if (lbOpen) {
+              this.closeLightbox();
+            } else if (
+              document.getElementById('index-modal')?.classList.contains('is-visible') ||
+              document.getElementById('about-modal')?.classList.contains('is-visible')
+            ) {
+              this.closeAllModals();
+            } else if (this.focusedFrameIndex !== null) {
+              this.unfocusFrame();
+            }
+          } else if (e.key === 'ArrowRight') {
+            if (lbOpen) {
+              this.openLightbox(this.activeWorkIndex + 1);
+            } else {
+              this.unfocusFrame();
+              this.targetScrollProgress += 1 / this.totalFrames;
+            }
+          } else if (e.key === 'ArrowLeft') {
+            if (lbOpen) {
+              this.openLightbox(this.activeWorkIndex - 1);
+            } else {
+              this.unfocusFrame();
+              this.targetScrollProgress -= 1 / this.totalFrames;
+            }
+          }
+        });
+
+        window.addEventListener('resize', () => {
+          if (!this.host || !this.renderer || !this.camera) return;
+          this.width = this.host.clientWidth || window.innerWidth;
+          this.height = this.host.clientHeight || window.innerHeight;
+          this.camera.aspect = this.width / Math.max(1, this.height);
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(this.width, this.height);
+        });
+
+        // Navigation & UI button bindings
+        document.querySelectorAll('[data-nav]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-nav');
+            if (target === 'gallery') {
+              this.closeAllModals();
+              this.unfocusFrame();
+            } else if (target === 'selected') {
+              this.openModal('index-modal');
+            } else if (target === 'about') {
+              this.openModal('about-modal');
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-close-modal]').forEach((btn) => {
+          btn.addEventListener('click', () => this.closeAllModals());
+        });
+
+        document.getElementById('brand-reset-btn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.closeAllModals();
+          this.closeLightbox();
+          this.unfocusFrame();
+          this.targetScrollProgress = 0;
+        });
+
+        document.getElementById('explore-selected-btn')?.addEventListener('click', () => {
+          this.openModal('index-modal');
+        });
+
+        document.getElementById('mode-gallery-btn')?.addEventListener('click', () => {
+          this.closeAllModals();
+        });
+
+        document.getElementById('mode-index-btn')?.addEventListener('click', () => {
+          this.openModal('index-modal');
+        });
+
+        document.getElementById('step-prev-btn')?.addEventListener('click', () => {
+          this.unfocusFrame();
+          this.targetScrollProgress -= 1 / this.totalFrames;
+        });
+
+        document.getElementById('step-next-btn')?.addEventListener('click', () => {
+          this.unfocusFrame();
+          this.targetScrollProgress += 1 / this.totalFrames;
+        });
+
+        document.getElementById('view-photo-pill')?.addEventListener('click', () => {
+          if (this.focusedFrameIndex !== null) {
+            const frameObj = this.frameMeshes[this.focusedFrameIndex];
+            this.openLightbox(frameObj ? frameObj.workIndex : this.activeWorkIndex);
+          }
+        });
+
+        document.getElementById('lb-close-btn')?.addEventListener('click', () => this.closeLightbox());
+        document.getElementById('lb-prev-btn')?.addEventListener('click', () => this.openLightbox(this.activeWorkIndex - 1));
+        document.getElementById('lb-next-btn')?.addEventListener('click', () => this.openLightbox(this.activeWorkIndex + 1));
+        document.getElementById('lb-like-btn')?.addEventListener('click', () => this.toggleLike(this.activeWorkIndex));
+        document.getElementById('header-like-pill')?.addEventListener('click', () => this.openModal('index-modal'));
+        document.getElementById('download-zip-btn')?.addEventListener('click', () => this.downloadZipPackage());
+
+        document.getElementById('lightbox-modal')?.addEventListener('click', (e) => {
+          if (e.target.id === 'lightbox-modal') {
+            this.closeLightbox();
+          }
+        });
+
+        document.getElementById('index-grid')?.addEventListener('click', (e) => {
+          const openBtn = e.target.closest('[data-open-work]');
+          if (openBtn) {
+            const idx = Number(openBtn.getAttribute('data-open-work'));
+            this.closeAllModals();
+            this.openLightbox(idx);
+            return;
+          }
+          const jumpBtn = e.target.closest('[data-jump-work]');
+          if (jumpBtn) {
+            const idx = Number(jumpBtn.getAttribute('data-jump-work'));
+            this.closeAllModals();
+            const targetFrameIdx = this.frameMeshes.findIndex((f) => f.workIndex === idx);
+            if (targetFrameIdx >= 0) {
+              this.focusFrame(targetFrameIdx);
+            }
+            return;
+          }
+          const likeBtn = e.target.closest('[data-toggle-like]');
+          if (likeBtn) {
+            const idx = Number(likeBtn.getAttribute('data-toggle-like'));
+            this.toggleLike(idx);
+          }
+        });
+      }
+
+      updateHud() {
+        const normalized = ((this.scrollProgress % 1) + 1) % 1;
+        const nearestFrameIdx = Math.round(normalized * this.totalFrames) % this.totalFrames;
+        const workIdx =
+          this.focusedFrameIndex !== null && this.frameMeshes[this.focusedFrameIndex]
+            ? this.frameMeshes[this.focusedFrameIndex].workIndex
+            : nearestFrameIdx % this.works.length;
+
+        this.activeWorkIndex = workIdx;
+
+        const counterEl = document.getElementById('plate-counter-label');
+        const fillEl = document.getElementById('plate-progress-fill');
+        const helperEl = document.getElementById('wander-helper-text');
+
+        const currentStr = String(workIdx + 1).padStart(2, '0');
+        const totalStr = String(this.works.length).padStart(2, '0');
+        if (counterEl) counterEl.textContent = `${currentStr} / ${totalStr}`;
+        if (fillEl) fillEl.style.width = `${((workIdx + 1) / this.works.length) * 100}%`;
+
+        if (helperEl) {
+          helperEl.innerHTML =
+            this.focusedFrameIndex !== null
+              ? '<div>CLICK THE PHOTO TO VIEW FULL SIZE</div><div>ESC OR CLICK AWAY TO STEP BACK</div>'
+              : '<div>SCROLL OR DRAG TO WANDER</div><div>CLICK A PHOTO TO COME CLOSER</div>';
+        }
+      }
+
+      updateViewPhotoPill() {
+        const pill = document.getElementById('view-photo-pill');
+        if (!pill) return;
+
+        if (this.focusedFrameIndex === null || !this.frameMeshes[this.focusedFrameIndex]) {
+          pill.classList.remove('is-visible');
+          return;
+        }
+
+        const frameObj = this.frameMeshes[this.focusedFrameIndex];
+        const worldPos = frameObj.group.position.clone();
+        worldPos.y -= frameObj.outerH * 0.34;
+
+        const projected = worldPos.project(this.camera);
+        if (projected.z > 1) {
+          pill.classList.remove('is-visible');
+          return;
+        }
+
+        const screenX = (projected.x * 0.5 + 0.5) * this.width;
+        const screenY = (-projected.y * 0.5 + 0.5) * this.height;
+        pill.style.left = `${screenX}px`;
+        pill.style.top = `${screenY}px`;
+        pill.classList.add('is-visible');
+      }
+
+      animate() {
+        requestAnimationFrame(() => this.animate());
+
+        const prevProgress = this.scrollProgress;
+        this.scrollProgress += (this.targetScrollProgress - this.scrollProgress) * 0.085;
+
+        if (Math.abs(this.scrollProgress - prevProgress) > 0.0001) {
+          this.updateHud();
+        }
+
+        // Raycast hover cursor feedback
+        if (!this.isDragging && this.interactivePlanes.length > 0) {
+          this.raycaster.setFromCamera(this.pointerNDC, this.camera);
+          const hits = this.raycaster.intersectObjects(this.interactivePlanes, false);
+          if (hits.length > 0) {
+            this.host.classList.add('is-hovering-photo');
+          } else {
+            this.host.classList.remove('is-hovering-photo');
+          }
+        }
+
+        const pose =
+          this.focusedFrameIndex !== null
+            ? this.getFocusCameraPose(this.focusedFrameIndex)
+            : this.getWalkCameraPose(this.scrollProgress);
+
+        if (!this._camPos) {
+          this._camPos = pose.position.clone();
+          this._camTarget = pose.target.clone();
+        } else {
+          this._camPos.lerp(pose.position, 0.09);
+          this._camTarget.lerp(pose.target, 0.11);
+        }
+
+        this.camera.position.copy(this._camPos);
+        this.camera.lookAt(this._camTarget);
+
+        this.updateViewPhotoPill();
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    /**
+     * Converts locally selected File objects (.jpg, .webp, .png) into gallery works
+     * so users can load their own photos directly even when opening index.html via file://
+     */
+    async function loadFilesFromInput(fileList) {
+      const files = Array.from(fileList || []).filter((f) =>
+        /\.(jpe?g|webp|png)$/i.test(f.name) || /^image\/(jpeg|webp|png)$/i.test(f.type)
+      );
+      if (files.length === 0) return null;
+
+      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+      const loadedWorks = await Promise.all(
+        files.map(
+          (file, idx) =>
+            new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+                const img = new Image();
+                img.onload = () => {
+                  const cleanTitle = file.name
+                    .replace(/\.[^.]+$/, '')
+                    .replace(/[-_]+/g, ' ')
+                    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+                  const safePngUrl = imageToSafeDataUrl(img) || dataUrl;
+
+                  resolve({
+                    id: String(idx + 1).padStart(2, '0'),
+                    title: cleanTitle || `Plate ${idx + 1}`,
+                    category: `Custom Plate · ${img.naturalWidth}×${img.naturalHeight}`,
+                    credit: file.name,
+                    series: 'Light & Form · Local Selection',
+                    camera: `${img.naturalWidth} × ${img.naturalHeight} px`,
+                    description: `Archival plate (${file.name}) displayed uncropped at its native ${(img.naturalWidth / Math.max(1, img.naturalHeight)).toFixed(2)}:1 aspect ratio.`,
+                    sceneType: 'spring_crossing',
+                    externalUrl: dataUrl,
+                    safeDataUrl: safePngUrl,
+                    preloadedImg: img
+                  });
+                };
+                img.onerror = () => resolve(null);
+                img.src = dataUrl;
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      const valid = loadedWorks.filter(Boolean);
+      return valid.length > 0 ? valid : null;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      const initialWorks = await discoverAssetWorks();
+      let galleryApp = new CurvedGalleryCorridor(initialWorks);
+      window.__galleryApp = galleryApp;
+
+      const isFileProtocol = window.location.protocol === 'file:';
+      const hasExternalAssets = initialWorks.some((w) => Boolean(w.preloadedImg));
+      if (isFileProtocol && !hasExternalAssets) {
+        setTimeout(() => {
+          galleryApp.showToast('Chrome blocks file:// assets — use "+ Folder" or "+ Load Photos"');
+        }, 700);
+      }
+
+      const handleCustomFiles = async (fileList) => {
+        const customWorks = await loadFilesFromInput(fileList);
+        if (customWorks) {
+          galleryApp = new CurvedGalleryCorridor(customWorks);
+          window.__galleryApp = galleryApp;
+          galleryApp.showToast(`Loaded ${customWorks.length} custom photograph${customWorks.length === 1 ? '' : 's'}`);
+        } else {
+          galleryApp.showToast('No valid .jpg, .webp, or .png files selected');
+        }
+      };
+
+      const localInput = document.getElementById('local-photos-input');
+      if (localInput) {
+        localInput.addEventListener('change', async (e) => {
+          await handleCustomFiles(e.target.files);
+          e.target.value = '';
+        });
+      }
+
+      const folderInput = document.getElementById('local-folder-input');
+      if (folderInput) {
+        folderInput.addEventListener('change', async (e) => {
+          await handleCustomFiles(e.target.files);
+          e.target.value = '';
+        });
+      }
+    });
+  </script>
+</body>
+</html>
